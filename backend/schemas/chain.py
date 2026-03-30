@@ -25,6 +25,13 @@ class PricingInsight(BaseModel):
     source_url: str = Field("", description="URL to price tracking page")
 
 
+class CommunitySource(BaseModel):
+    """A Reddit thread or community discussion that backs a recommendation"""
+    title: str = Field("", description="Title or summary of the source discussion")
+    url: str = Field("", description="URL to the Reddit thread or discussion")
+    subreddit: str = Field("", description="Subreddit name (e.g. HeadphoneAdvice)")
+
+
 class ExtractedProduct(BaseModel):
     """Product details for each of the extracted products"""
     product_name: str = Field(..., description="The name of the product extracted from the text")
@@ -33,6 +40,7 @@ class ExtractedProduct(BaseModel):
         "",
         description="A detailed 3-5 sentence community review including user testimonials, long-term usage insights, pros/cons, and any caveats mentioned by real users"
     )
+    community_sources: list[CommunitySource] = Field(default_factory=list, description="Reddit threads and discussions that back this recommendation (populated separately)")
     news_articles: list[NewsArticle] = Field(default_factory=list, description="News and review articles about this product (populated separately)")
     youtube_reviews: list[YouTubeReview] = Field(default_factory=list, description="YouTube review videos for this product (populated separately)")
     pricing_insight: PricingInsight = Field(default_factory=PricingInsight, description="Price history and buying advice (populated separately)")

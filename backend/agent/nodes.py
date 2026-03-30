@@ -9,7 +9,7 @@ from backend.agent.generate_chain import create_recommendation_chain
 from backend.agent.graph import Steps, GraphState
 from backend.agent.vector_store import Retriever
 from backend.database.messages import create_message, MessageSenderEnum
-from backend.schemas.chain import NewsArticle, YouTubeReview, PricingInsight
+from backend.schemas.chain import NewsArticle, YouTubeReview, PricingInsight, CommunitySource
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,40 @@ class GraphNodes:
         namespace = state["category"]
 
         documents = self.retriever.sim_search(prompt, namespace)
+
+        # Extract source URLs from Pinecone metadata
+        source_urls = []
+        seen_ids = set()
+        for doc in documents:
+            meta = doc.metadata if hasattr(doc, "metadata") else {}
+            title = meta.get("title", "")[:120]
+            subreddit = meta.get("subreddit", "")
+            post_id = meta.get("id", "")
+
+            # Skip if no useful metadata
+            if not title or not post_id:
+                continue
+            # Deduplicate by post_id (same post can have multiple chunks)
+            if post_id in seen_ids:
+                continue
+            seen_ids.add(post_id)
+
+            # Build Reddit URL
+            if subreddit:
+                url = f"https://reddit.com/r/{subreddit}/comments/{post_id}"
+            else:
+                url = f"https://reddit.com/search/?q={title.replace(' ', '+')}"
+
+            source_urls.append({
+                "url": url,
+                "title": title,
+                "subreddit": subreddit or "reddit",
+                "content_preview": (doc.page_content[:200] if hasattr(doc, "page_content") else ""),
+            })
+
+        print(f"Extracted {len(source_urls)} unique sources from Pinecone")
         state["resources"] = documents
+        state["source_urls"] = source_urls
         state["steps"] = [Steps.VECTOR_STORE_RETRIEVAL.value]
         state["retry_count"] = 0
         return state
@@ -118,7 +151,8 @@ class GraphNodes:
         ]
 
         live_results = []
-        seen_urls = set()
+        source_urls = state.get("source_urls", [])
+        seen_urls = set(s.get("url", "") for s in source_urls)
 
         def _search(query):
             try:
@@ -130,7 +164,12 @@ class GraphNodes:
                     if url in seen_urls or len(content) < 50:
                         continue
                     seen_urls.add(url)
-                    found.append(content)
+                    # Extract subreddit from URL
+                    subreddit = ""
+                    if "reddit.com/r/" in url:
+                        subreddit = url.split("/r/")[1].split("/")[0]
+                    title = content.strip().split("\n")[0][:120].lstrip("#").strip()
+                    found.append({"content": content, "url": url, "title": title, "subreddit": subreddit})
                 return found
             except Exception as e:
                 logger.warning(f"Live Reddit search failed: {e}")
@@ -144,12 +183,18 @@ class GraphNodes:
         existing = state.get("resources", [])
         existing_text = [r.page_content if hasattr(r, "page_content") else r for r in existing]
 
-        for content in live_results[:5]:
-            existing_text.append(f"[Recent community discussion] {content}")
+        for item in live_results[:5]:
+            existing_text.append(f"[Recent community discussion] {item['content']}")
+            source_urls.append({
+                "url": item["url"],
+                "title": item["title"],
+                "subreddit": item.get("subreddit", "")
+            })
 
         state["resources"] = existing_text
+        state["source_urls"] = source_urls
         state["steps"].append(Steps.LIVE_REDDIT_SEARCH.value)
-        print(f"Added {min(len(live_results), 5)} live Reddit results")
+        print(f"Added {min(len(live_results), 5)} live Reddit results, {len(source_urls)} total sources")
         return state
 
     # ── Generation ──
@@ -285,10 +330,40 @@ class GraphNodes:
                 name, pricing = future.result()
                 pricing_map[name] = pricing
 
+        # Match community sources to products
+        source_urls = state.get("source_urls", [])
+
         for product in products:
             product.news_articles = news_map.get(product.product_name, [])
             product.youtube_reviews = youtube_map.get(product.product_name, [])
             product.pricing_insight = pricing_map.get(product.product_name, PricingInsight())
+
+            product_lower = product.product_name.lower()
+            # Match partial names: "Sony WH-1000XM5" → ["sony", "wh-1000xm5"]
+            name_parts = [p for p in product_lower.split() if len(p) > 2]
+
+            matched_sources = []
+            for src in source_urls:
+                # Check title, subreddit, AND content preview for product mention
+                src_text = f"{src.get('title', '')} {src.get('subreddit', '')} {src.get('content_preview', '')}".lower()
+                if any(part in src_text for part in name_parts) or product_lower in src_text:
+                    matched_sources.append(CommunitySource(
+                        title=src.get("title", "Reddit discussion")[:100],
+                        url=src.get("url", ""),
+                        subreddit=src.get("subreddit", "reddit")
+                    ))
+
+            # If no specific match, all sources contributed context — assign top ones
+            if not matched_sources and source_urls:
+                for src in source_urls[:3]:
+                    matched_sources.append(CommunitySource(
+                        title=src.get("title", "Reddit discussion")[:100],
+                        url=src.get("url", ""),
+                        subreddit=src.get("subreddit", "reddit")
+                    ))
+
+            product.community_sources = matched_sources[:4]
+            print(f"  {product.product_name}: {len(product.community_sources)} sources matched")
 
         # Persist messages
         prompt = state["prompt"]

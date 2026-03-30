@@ -12,6 +12,7 @@ class GraphState(TypedDict):
     category: str
     chat_session_id: int
     retry_count: int
+    source_urls: list
 
 
 class Steps(StrEnum):

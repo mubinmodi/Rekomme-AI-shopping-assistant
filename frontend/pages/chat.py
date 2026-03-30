@@ -119,6 +119,7 @@ def render_unified_product_view(products, product_listings, reasoning_summary=""
         name = product.get("product_name", "Unknown")
         reason = product.get("reason_for_recommendation", "")
         detailed = product.get("detailed_review", "")
+        community_sources = product.get("community_sources", [])
         news = product.get("news_articles", [])
         youtube = product.get("youtube_reviews", [])
         pricing = product.get("pricing_insight", {})
@@ -189,9 +190,27 @@ def render_unified_product_view(products, product_listings, reasoning_summary=""
             # Community review
             st.markdown("**Community Review**")
             review_text = detailed if detailed else reason
-            # Clean up any raw markdown/formatting artifacts
             review_text = review_text.replace("\\n", "\n").strip()
             st.markdown(review_text)
+
+            # Community sources (Reddit threads backing this recommendation)
+            if community_sources:
+                st.markdown("")
+                st.markdown("**Sources**")
+                for src in community_sources[:3]:
+                    src_title = src.get("title", "").strip()[:80]
+                    src_url = src.get("url", "")
+                    subreddit = src.get("subreddit", "")
+                    if not src_url:
+                        continue
+                    label = f"r/{subreddit}" if subreddit else "Reddit"
+                    if src_title and not src_title.startswith("http"):
+                        label = f"{src_title} ({label})"
+                    st.markdown(
+                        f'<a href="{src_url}" target="_blank" style="color:#FF6B35;text-decoration:none;display:block;padding:3px 0;font-size:0.85em;">'
+                        f'&#128172; {label}</a>',
+                        unsafe_allow_html=True
+                    )
 
             # News articles
             if news:

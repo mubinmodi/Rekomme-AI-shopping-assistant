@@ -32,35 +32,14 @@ An intelligent shopping recommendation system that leverages Reddit community di
 
 ## Architecture
 
-```
-User Query
-    |
-    v
-[Vector Search (Pinecone MMR k=10)]
-    |
-    v
-[Batch Grade Documents (1 LLM call)]
-    |
-    +--> Relevant: [Live Reddit Search (Tavily)]
-    |
-    +--> Irrelevant: [Rewrite Query] --> [Web Search] --> [Live Reddit Search]
-    |
-    v
-[Generate Recommendations (GPT-4o-mini)]
-    |
-    v
-[Hallucination + Quality Check]
-    |
-    +--> Grounded: [Enrich with Sources]
-    |
-    +--> Not Grounded: [Retry Generation]
-    |
-    v
-[Enrich: News + YouTube + Price History (parallel Tavily)]
-    |
-    v
-[Response with Product Cards]
-```
+### System Overview
+![System Architecture](Architecture/system_architecture.png)
+
+### Agent Decision Flow
+![Agent Flow](Architecture/agent_flow.png)
+
+### Data Pipeline
+![Pipeline Flow](Architecture/pipeline_flow.png)
 
 ## Tech Stack
 

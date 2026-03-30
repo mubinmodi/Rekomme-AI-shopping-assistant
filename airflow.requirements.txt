@@ -1,8 +1,11 @@
 praw
-pydantic 
-psycopg2-binary 
-praw
+pydantic
+psycopg2-binary
 langchain_openai
-langchain_pinecone 
+langchain_pinecone
 langchain
-
+langchain-community
+langchain-text-splitters
+tavily-python
+boto3
+python-dotenv

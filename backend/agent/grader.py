@@ -1,4 +1,3 @@
-from langchain import hub
 from langchain.prompts import PromptTemplate
 from langchain_core.output_parsers import JsonOutputParser, StrOutputParser
 
@@ -7,98 +6,98 @@ class GraderUtils:
     def __init__(self, llm):
         self.llm = llm
 
-    def create_retrieval_grader(self):
+    def create_batch_retrieval_grader(self):
         """
-        Creates a retrieval grader that assesses the relevance of a retrieved document to a user question.
-
-        Returns:
-            A callable function that takes a document and a question as input and returns a JSON object with a binary score indicating whether the document is relevant to the question.
+        Grades ALL retrieved documents in a single LLM call.
+        Returns a JSON array of scores for each document.
         """
         grade_prompt = PromptTemplate(
-            template="""You are an evaluator tasked with determining whether a retrieved document matches the user prompt. Your role is to analyze the document for keywords relevant to the user prompt, and grade it as relevant. 
-            Return a binary score of "yes" if the document matches the user prompt and "no" if it does not match. Format the binary score in JSON with a single key "score" and no preamble or explanation.  
-            
-            Context:
-            Retrieved Document: {resources}
-            User Prompt: {prompt}
-            
-            Question:
-            Does the retrieved document match the user prompt?
-            
-            Answer:
-            """,
+            template="""You are an evaluator determining which retrieved documents are relevant to a user's product search query.
+
+You will receive a numbered list of documents and a user prompt. For EACH document, return "yes" if it contains information relevant to the user's needs (product mentions, recommendations, reviews, comparisons) or "no" if it is off-topic.
+
+Return a JSON object with a single key "scores" containing an array of objects, each with "index" (the document number) and "relevant" ("yes" or "no"). No preamble or explanation.
+
+User Prompt: {prompt}
+
+Documents:
+{resources}
+
+Answer:""",
             input_variables=["resources", "prompt"],
-    )
+        )
+        return grade_prompt | self.llm | JsonOutputParser()
 
-        # Create the retriever chain
-        retriever_grader = grade_prompt | self.llm | JsonOutputParser()
+    def create_retrieval_grader(self):
+        """Single-document grading fallback."""
+        grade_prompt = PromptTemplate(
+            template="""You are an evaluator determining whether a retrieved document is relevant to a user's product search query. Return a binary score "yes" or "no" in JSON with key "score".
 
-        return retriever_grader
+Retrieved Document: {resources}
+User Prompt: {prompt}
+
+Answer:""",
+            input_variables=["resources", "prompt"],
+        )
+        return grade_prompt | self.llm | JsonOutputParser()
 
     def create_hallucination_grader(self):
         """
-        Creates a hallucination grader that assesses whether an answer is grounded in/supported by a set of facts.
-
-        Returns:
-            A callable function that takes a generation (answer) and a list of documents (facts) as input and returns a JSON object with a binary score indicating whether the answer is grounded in/supported by the facts.
+        Checks if the generation is grounded in the retrieved documents.
+        Returns JSON {"score": "yes"/"no"}.
         """
         hallucination_prompt = PromptTemplate(
-            template="""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
-            You are a grader assessing whether an answer is grounded in / supported by a set of facts. Give a binary score 'yes' or 'no' score to indicate whether the answer is grounded in / supported by a set of facts. Provide the binary score as a JSON with a single key 'score' and no preamble or explanation.
-            <|eot_id|>
-            <|start_header_id|>user<|end_header_id|>
-            Here are the facts:
-            \n ------- \n
-            {documents}
-            \n ------- \n
-            Here is the answer: {generation}
-            <|eot_id|>
-            <|start_header_id|>assistant<|end_header_id|>""",
+            template="""You are a grader assessing whether product recommendations are grounded in the provided community discussions.
+
+Check: Are the product names, features, and user experiences mentioned in the generation actually present in the source documents? If the generation invents products or testimonials not in the documents, score "no".
+
+Return JSON with a single key "score" ("yes" if grounded, "no" if hallucinated). No preamble.
+
+Source documents:
+{documents}
+
+Generation to check:
+{generation}
+
+Answer:""",
             input_variables=["generation", "documents"],
         )
+        return hallucination_prompt | self.llm | JsonOutputParser()
 
-        hallucination_grader = hallucination_prompt | self.llm | JsonOutputParser()
-
-        return hallucination_grader
-
-    def create_code_evaluator(self):
+    def create_answer_quality_evaluator(self):
         """
-        Creates a code evaluator that assesses whether the generated code is correct and relevant to the given question.
-
-        Returns:
-            A callable function that takes a generation (code), a question, and a list of documents as input and returns a JSON object with a binary score and feedback.
+        Checks if the generation actually answers the user's question with useful recommendations.
+        Returns JSON {"score": "yes"/"no", "feedback": "..."}.
         """
-        eval_template = PromptTemplate(
-            template="""<|begin_of_text|><|start_header_id|>system<|end_header_id|> You are a code evaluator assessing whether the generated code is correct and relevant to the given question.
-            Provide a JSON response with the following keys:
+        eval_prompt = PromptTemplate(
+            template="""You are an evaluator assessing whether a product recommendation response adequately answers the user's question.
 
-            'score': A binary score 'yes' or 'no' indicating whether the code is correct and relevant.
-            'feedback': A brief explanation of your evaluation, including any issues or improvements needed.
+Check:
+1. Does the response recommend specific products (not vague categories)?
+2. Are the recommendations relevant to what the user asked for?
+3. Does the response include enough detail to be useful (reasons, pros/cons)?
 
-            <|eot_id|><|start_header_id|>user<|end_header_id|>
-            Here is the generated code:
-            \n ------- \n
-            {generation}
-            \n ------- \n
-            Here is the question: {input}
-            \n ------- \n
-            Here are the relevant documents: {documents}
-            <|eot_id|><|start_header_id|>assistant<|end_header_id|>""",
+Return JSON with "score" ("yes" if the response is useful, "no" if not) and "feedback" (brief explanation). No preamble.
+
+User question: {input}
+Source documents: {documents}
+Generated response: {generation}
+
+Answer:""",
             input_variables=["generation", "input", "documents"],
         )
-
-        code_evaluator = eval_template | self.llm | JsonOutputParser()
-
-        return code_evaluator
+        return eval_prompt | self.llm | JsonOutputParser()
 
     def create_question_rewriter(self):
         """
-        Creates a question rewriter chain that rewrites a given question to improve its clarity and relevance.
-
-        Returns:
-            A callable function that takes a question as input and returns the rewritten question as a string.
+        Rewrites a vague user query into a more specific product search query.
         """
-        re_write_prompt = hub.pull("efriis/self-rag-question-rewriter")
-        question_rewriter = re_write_prompt | self.llm | StrOutputParser()
+        rewrite_prompt = PromptTemplate(
+            template="""You are a search query optimizer for a product recommendation system. Rewrite the following question to be more specific and searchable. Add relevant product category terms, use cases, and price range if implied.
 
-        return question_rewriter
+Original question: {question}
+
+Rewritten question (just the query, nothing else):""",
+            input_variables=["question"],
+        )
+        return rewrite_prompt | self.llm | StrOutputParser()

@@ -1,82 +1,76 @@
+import json
 from backend.agent.graph import GraphState
 
 
 class GraphEdges:
-    def __init__(self, hallucination_grader, code_evaluator):
+    def __init__(self, hallucination_grader, answer_quality_evaluator):
         self.hallucination_grader = hallucination_grader
-        self.code_evaluator = code_evaluator
+        self.answer_quality_evaluator = answer_quality_evaluator
 
-    def vector_search_decide_to_generate(self, state: GraphState):
-        resources = state["resources"]
+    def post_grade_decision(self, state: GraphState):
+        """After grading docs, decide: enough relevant docs or need to rewrite query."""
+        resources = state.get("resources", [])
+        perform_web_search = state.get("perform_web_search", False)
 
-        if len(resources) < 1 or state.get("perform_paper_search", False):
+        if len(resources) < 1 or perform_web_search:
+            print("---DECISION: DOCS IRRELEVANT, REWRITING QUERY---")
             return "irrelevant"
         else:
+            print("---DECISION: DOCS RELEVANT, PROCEEDING---")
             return "relevant"
 
-    def paper_search_decide_to_generate(self, state: GraphState):
-        resources = state["resources"]
-
-        if len(resources) < 1 or state.get("perform_web_search", False):
-            return "irrelevant"
-        else:
-            return "relevant"
-
-    def decide_to_generate(self, state):
-        """
-        Determines whether to generate an answer, or re-generate a question.
-
-        Args:
-            state (dict): The current graph state
-
-        Returns:
-            str: Binary decision for next node to call
-        """
-        print("---ASSESS GRADED DOCUMENTS---")
-        question = state["input"]
-        filtered_documents = state["documents"]
-
-        if not filtered_documents:
-            # All documents have been filtered check_relevance
-            # We will re-generate a new query
-            print("---DECISION: ALL DOCUMENTS ARE NOT RELEVANT TO QUESTION, TRANSFORM QUERY---")
-            return "transform_query"  # "retrieve_from_community_page", "transform_query"
-        else:
-            # We have relevant documents, so generate answer
-            print("---DECISION: GENERATE---")
-            return "generate"
-
-    def grade_generation_v_documents_and_question(self, state):
-        """
-        Determines whether the generation is grounded in the document and answers question.
-
-        Args:
-            state (dict): The current graph state
-
-        Returns:
-            str: Decision for next node to call
-        """
-        print("---CHECK HALLUCINATIONS---")
-        question = state["input"]
-        documents = state["documents"]
+    def post_generation_check(self, state: GraphState):
+        """After generation, check hallucination and answer quality."""
+        print("---CHECK HALLUCINATIONS & ANSWER QUALITY---")
+        prompt = state["prompt"]
+        resources = [r.page_content if hasattr(r, "page_content") else str(r) for r in state.get("resources", [])]
         generation = state["generation"]
 
-        score = self.hallucination_grader.invoke({"documents": documents, "generation": generation})
-        grade = score["score"]
-
-        # Check hallucination
-        if grade == "yes":
-            print("---DECISION: GENERATION IS GROUNDED IN DOCUMENTS---")
-            # Check question-answering
-            print("---GRADE GENERATION vs QUESTION---")
-            score = self.code_evaluator.invoke({"input": question, "generation": generation, "documents": documents})
-            grade = score["score"]
-            if grade == "yes":
-                print("---DECISION: GENERATION ADDRESSES QUESTION---")
-                return "useful"
-            else:
-                print("---DECISION: GENERATION DOES NOT ADDRESS QUESTION---")
-                return "not useful"
+        # Serialize generation for grading
+        if hasattr(generation, "model_dump"):
+            gen_text = json.dumps(generation.model_dump(mode="json"))
         else:
-            print("---DECISION: GENERATIONS ARE HALLUCINATED, RE-TRY---")
-            return "not supported"
+            gen_text = str(generation)
+
+        resources_text = "\n".join(resources[:5])
+
+        # Check hallucination: is the generation grounded in the documents?
+        try:
+            hallucination_score = self.hallucination_grader.invoke({
+                "documents": resources_text,
+                "generation": gen_text
+            })
+            is_grounded = hallucination_score.get("score", "yes").lower() == "yes"
+        except Exception as e:
+            print(f"Hallucination check failed: {e}")
+            is_grounded = True  # Default to grounded on error
+
+        if not is_grounded:
+            retry_count = state.get("retry_count", 0)
+            if retry_count < 1:
+                print("---DECISION: NOT GROUNDED, RETRYING GENERATION---")
+                return "retry"
+            else:
+                print("---DECISION: NOT GROUNDED BUT MAX RETRIES, CONTINUING---")
+                return "accept"
+
+        # Check answer quality: does the generation answer the question?
+        try:
+            quality_score = self.answer_quality_evaluator.invoke({
+                "input": prompt,
+                "generation": gen_text,
+                "documents": resources_text
+            })
+            answers_question = quality_score.get("score", "yes").lower() == "yes"
+        except Exception as e:
+            print(f"Quality check failed: {e}")
+            answers_question = True
+
+        if not answers_question:
+            retry_count = state.get("retry_count", 0)
+            if retry_count < 1:
+                print("---DECISION: DOESN'T ANSWER QUESTION, RETRYING---")
+                return "retry"
+
+        print("---DECISION: GENERATION IS GOOD, PROCEEDING TO ENRICHMENT---")
+        return "accept"

@@ -31,6 +31,9 @@ def make_authenticated_request(endpoint, method="GET", data=None, params=None):
     else:
         response = requests.get(url, headers=headers, params=params)
 
+    response.raise_for_status()
+    if not response.content:
+        return {}
     return response.json()
 
 
@@ -42,4 +45,7 @@ def make_unauthenticated_request(endpoint, method="GET", data=None, params=None)
     else:
         response = requests.get(url, params=params)
 
+    response.raise_for_status()
+    if not response.content:
+        return {}
     return response.json()

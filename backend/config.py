@@ -4,7 +4,8 @@ from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class Settings(BaseSettings, extra="ignore"):
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
     # AWS
     AWS_ACCESS_KEY_ID: str
     AWS_SECRET_ACCESS_KEY: str
@@ -22,7 +23,7 @@ class Settings(BaseSettings, extra="ignore"):
     POSTGRES_HOSTNAME: str
     POSTGRES_USER: str
     POSTGRES_PASSWORD: str
-    POSTGRES_PORT: int = 6543
+    POSTGRES_PORT: int = 5432
     POSTGRES_DB: str
     POSTGRES_URI: str | None = None
 
@@ -52,12 +53,11 @@ class Settings(BaseSettings, extra="ignore"):
     LOG_MAX_BYTES: int = 2000000  # Default to 2MB
     LOG_BACKUP_COUNT: int = 10
 
-    model_config = SettingsConfigDict(env_file=".env")
 
     @model_validator(mode="after")
-    def validator(cls, values: "Settings") -> "Settings":
-        values.POSTGRES_URI = values.POSTGRES_CONN_STRING
-        return values
+    def validator(self) -> "Settings":
+        self.POSTGRES_URI = self.POSTGRES_CONN_STRING
+        return self
 
 
 @lru_cache

@@ -15,38 +15,33 @@ def scrape_reddit(**kwargs):
     """
     Scrape Reddit data using RedditScraper
     """
-    # Initialize scraper
     scraper = RedditScraper()
-    
-    # Subreddits to scrape
+
     subreddits = ['HeadphoneAdvice']
-    
-    # Scraping configuration
+
     scrape_config = {
         'sort_by': 'top',
         'time_filter': 'year',
         'limit': 1000
     }
-    
+
     try:
-        # Use concurrent scraping method
         scraped_data = scraper.scrape_multiple_subreddits_concurrent(
             subreddits,
             sort_by=scrape_config['sort_by'],
             time_filter=scrape_config['time_filter'],
             limit=scrape_config['limit']
         )
-        
-        # Save full dataset
+
         scraper.save_to_file(
-            scraped_data, 
-            base_filename='multi_subreddit_posts', 
-            output_dir='output', 
+            scraped_data,
+            base_filename='multi_subreddit_posts',
+            output_dir='output',
             formats=['csv', 'json']
         )
-        
-        return scraped_data
-    
+
+        return scraped_data.to_json(orient='records')
+
     except Exception as e:
         print(f"Error in scraping execution: {e}")
         raise
@@ -57,9 +52,15 @@ def process_reddit_data(**kwargs):
     """
     # Pull scraped data from XCom
     ti = kwargs['ti']
-    scraped_data = ti.xcom_pull(task_ids='scrape_task')
-    
-    if scraped_data is None or scraped_data.empty:
+    scraped_json = ti.xcom_pull(task_ids='scrape_task')
+
+    if not scraped_json:
+        print("No data to process")
+        return
+
+    scraped_data = pd.read_json(scraped_json, orient='records')
+
+    if scraped_data.empty:
         print("No data to process")
         return
     
@@ -89,7 +90,7 @@ def process_reddit_data(**kwargs):
 with DAG(
     'reddit_data_pipeline',
     start_date=days_ago(1),
-    schedule_interval=None,
+    schedule=None,
     dagrun_timeout=timedelta(minutes=500),
     # execution_timeout=timedelta(minutes=200),
     catchup=False,

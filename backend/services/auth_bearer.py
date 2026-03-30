@@ -38,4 +38,6 @@ security_scheme = JWTBearer()
 
 async def get_current_user_id(token: Annotated[str, Depends(security_scheme)]) -> int:
     decoded_token = await decode_token(token)
+    if not decoded_token or "user_id" not in decoded_token:
+        raise HTTPException(status_code=403, detail="Invalid token payload")
     return decoded_token["user_id"]

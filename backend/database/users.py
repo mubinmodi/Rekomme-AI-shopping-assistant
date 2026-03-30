@@ -2,7 +2,6 @@ import logging
 
 from sqlalchemy import Boolean, Column, String, Integer, DateTime, Sequence
 
-from backend.database import Base
 from backend.database.db import Base
 
 logger = logging.getLogger(__name__)
@@ -30,10 +29,10 @@ class UserModel(Base):
     active = Column("active", Boolean, server_default="TRUE")
     password_timestamp = Column("password_timestamp", Integer, nullable=True)
     created_at = Column(
-        "created_at", DateTime, server_default="CURRENT_TIMESTAMP()", nullable=False
+        "created_at", DateTime, server_default="CURRENT_TIMESTAMP", nullable=False
     )
     modified_at = Column(
-        "modified_at", DateTime, server_default="CURRENT_TIMESTAMP()", nullable=False
+        "modified_at", DateTime, server_default="CURRENT_TIMESTAMP", nullable=False
     )
 
     __table_args__ = {

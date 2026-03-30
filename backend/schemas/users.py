@@ -15,7 +15,7 @@ class UserRequest(BaseModel):
 
 class UserCreateRequest(UserRequest):
     active: bool = True
-    password_timestamp: datetime = Field(default_factory=lambda: int(time()))
+    password_timestamp: int = Field(default_factory=lambda: int(time()))
 
     @model_validator(mode="after")
     def validator(self) -> "UserCreateRequest":

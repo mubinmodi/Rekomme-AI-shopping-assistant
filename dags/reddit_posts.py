@@ -9,7 +9,7 @@ db_host = os.getenv("POSTGRES_HOSTNAME")
 db_name = os.getenv("POSTGRES_DB")
 db_user = os.getenv("POSTGRES_USER")
 db_password = os.getenv("POSTGRES_PASSWORD")
-db_port = os.getenv("POSTGRES_PORT")
+db_port = int(os.getenv("POSTGRES_PORT", "5432"))
 def insert_source_reddit_post(post_id, source_url):
     """Insert initial Reddit post record with source URL"""
     conn = psycopg2.connect(
@@ -74,7 +74,10 @@ def update_processed_reddit_post(post_id, processed_data):
         """
         
         date_format = "%Y-%m-%d"
-        created_date = datetime.strptime(processed_data.get("created_date"), date_format)
+        raw_date = processed_data.get("created_date")
+        if raw_date is None:
+            raise ValueError("created_date is missing from processed_data")
+        created_date = datetime.strptime(raw_date, date_format)
         
         cursor.execute(
             update_query, 

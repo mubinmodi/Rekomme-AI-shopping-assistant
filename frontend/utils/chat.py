@@ -70,6 +70,20 @@ def search_initial(model: str, prompt: str, category: str, chat_session_id: str 
         data=payload
     )
 
+def search_followup(prompt: str, products_context: list, chat_session_id: int | None, follow_up_type: str):
+    payload = {
+        "prompt": prompt,
+        "products_context": products_context,
+        "chat_session_id": chat_session_id,
+        "follow_up_type": follow_up_type,
+    }
+    return make_authenticated_request(
+        endpoint="/search/followup",
+        method="POST",
+        data=payload
+    )
+
+
 def fetch_chat_sessions():
     resp = make_authenticated_request(
         endpoint="/search/chat-sessions",
@@ -86,11 +100,11 @@ def process_selected_chat_session(chat_session: str) -> int | None:
         return None
 
 def search_product_listings(query: str):
-    # POST /search/product-listings
+    # POST /search/product-listings (no auth required)
     payload = {
         "query": query
     }
-    return make_authenticated_request(
+    return make_unauthenticated_request(
         endpoint="/search/product-listings",
         method="POST",
         data=payload

@@ -22,7 +22,7 @@ def main():
         'sort_by': 'top',
         'time_filter': 'year',
         'limit': 5,
-        # 'chunk_size': 250  # Increased chunk size
+        'chunk_size': 250
     }
     
     try:

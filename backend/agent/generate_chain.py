@@ -1,43 +1,50 @@
+from datetime import datetime
+
 from langchain_core.language_models import BaseChatModel
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
 from backend.schemas.chain import SearchResult
 
+CURRENT_YEAR = datetime.now().year
+
 
 def create_recommendation_chain(llm: BaseChatModel):
-    """
-    Creates a generate chain for answering code-related questions.
+    system_prompt = f"""You are Rekomme, an expert product recommendation assistant that analyzes real community discussions to provide detailed, trustworthy recommendations.
 
-    Args:
-        llm (LLM): The language model to use for generating responses.
+Your job:
+1. Identify products from the community content that match the user's needs.
+2. Prioritize products released or actively discussed in {CURRENT_YEAR - 2}-{CURRENT_YEAR}. If older models are mentioned, include them only if the community still considers them excellent.
+3. For each product, provide a concise reason AND a detailed community-backed review.
 
-    Returns:
-        A callable function that takes a context and a question as input and returns a string response.
-    """
-    system_prompt = """You are a product recommendation assistant that uses both user requirements and community discussions to identify and recommend products. You have just received several Reddit comment chunks discussing various products. Your job is to:
+For each product:
+- **product_name**: Full correct product name (e.g. "Sony WH-1000XM5" not "Sony headphones")
+- **reason_for_recommendation**: 1-2 sentence summary
+- **detailed_review**: 3-5 well-formed sentences covering:
+  * Real user experiences after owning it for months
+  * Build quality and durability feedback
+  * Sound quality and how it compares to competitors
+  * Common complaints or trade-offs
+  * Value for money according to the community
 
-- Analyze the user's initial query and the retrieved Reddit documents to identify relevant products, brands, or categories that match the user's needs.
-- Extract any product or brand mentions that are directly relevant to the user's criteria from the retrieved documents.
+Rules:
+- ONLY paraphrase what is in the provided community content. Do NOT invent testimonials or experiences.
+- When users disagree about a product, present both perspectives and note which has more community support.
+- If the content doesn't have enough info to recommend products, say so honestly in the reasoning_summary.
+- When possible, suggest options across budget, mid-range, and premium price tiers.
+- Recommend 4-6 products maximum, ranked by community sentiment strength.
+- Leave news_articles and youtube_reviews as empty lists (populated separately).
+- Use clear, natural English. No markdown formatting inside JSON values.
 
-Important details:
-- Focus only on product mentions that align with the user’s stated needs and is positive in nature.
-- If multiple products are mentioned, consider all that align with the user’s criteria.
-- Do not limit or prioritize based on price or budget unless the user explicitly requests it. Include products from all price ranges.
+{{format_instructions}}"""
 
-Format the generated response in JSON format by wrapping the output in `json` tags\n{format_instructions}"""
-
-    users_query="""User’s query:
+    users_query = """User's query:
 "{prompt}"
 
-Below are the top Reddit comment chunks returned from a similarity search:
+Community discussions (stored knowledge + recent live searches):
 {resources}
 
-Using the above Reddit content and the user query, please identify the products and brands that fit the user’s needs without filtering by budget."""
-
-
-    # generate_prompt = PromptTemplate(template=system_prompt, input_variables=["prompt", "resources"])
-    # generate_chain = generate_prompt | llm | StrOutputParser()
+Based on ALL the content above, recommend the best products. Prioritize recent discussions. Items marked [Recent community discussion] are fresh and should be weighted more heavily."""
 
     parser = PydanticOutputParser(pydantic_object=SearchResult)
 
@@ -49,8 +56,3 @@ Using the above Reddit content and the user query, please identify the products 
 
     chain = prompt | llm | parser
     return chain
-
-
-def create_e_commerce_chain(llm):
-    ...
-

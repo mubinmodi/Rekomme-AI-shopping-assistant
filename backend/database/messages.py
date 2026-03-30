@@ -13,7 +13,7 @@ class MessagesModel(Base):
     chat_session_id = Column(Integer, nullable=False)
     sender = Column(String(50), nullable=False)
     content = Column(Text, nullable=False)
-    timestamp = Column(DateTime, server_default="CURRENT_TIMESTAMP()", nullable=False)
+    timestamp = Column(DateTime, server_default="CURRENT_TIMESTAMP", nullable=False)
     ref = Column(Text)
     tools_used = Column(Text)
 
@@ -38,4 +38,4 @@ def get_messages_by_chat_id(chat_session_id: int) -> list[MessagesModel]:
     with db_session() as session:
         return session.query(
             MessagesModel.sender, MessagesModel.content, MessagesModel.ref, MessagesModel.tools_used
-        ).filter(MessagesModel.chat_session_id == chat_session_id)
+        ).filter(MessagesModel.chat_session_id == chat_session_id).all()

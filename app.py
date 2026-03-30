@@ -8,29 +8,16 @@ from frontend.pages.login import login
 from frontend.utils.chat import ensure_resource_dir_exists
 
 def main():
-    # Load environment variables
     load_dotenv()
 
-    # Set page configuration
     st.set_page_config(
         page_title="Rekomme - AI Shopping Assistant",
         layout="wide",
         initial_sidebar_state="expanded",
     )
 
-    # Custom CSS
-    st.markdown(
-        """
+    st.markdown("""
     <style>
-        .reportview-container {
-            background: linear-gradient(to right, #f3e7e9 0%, #e3eeff 99%, #e3eeff 100%);
-        }
-        .sidebar .sidebar-content {
-            background: linear-gradient(to bottom, #f3e7e9 0%, #e3eeff 99%, #e3eeff 100%);
-        }
-        h1 {
-            color: #1e3d59;
-        }
         .stButton>button {
             color: #ffffff;
             background-color: #1e3d59;
@@ -39,54 +26,32 @@ def main():
         .stTextInput>div>div>input {
             border-radius: 5px;
         }
-        .summary-container {
-            background-color: #f8f9fa;
-            padding: 20px;
-            border-radius: 10px;
-            margin: 10px 0;
-        }
     </style>
-    """,
-        unsafe_allow_html=True,
-    )
+    """, unsafe_allow_html=True)
 
-    # Initialize session states
-    if "current_view" not in st.session_state:
-        st.session_state.current_view = "document_list"
-    if "selected_document" not in st.session_state:
-        st.session_state.selected_document = None
-    if "summaries" not in st.session_state:
-        st.session_state.summaries = {}
     if "logged_in" not in st.session_state:
         st.session_state.logged_in = False
+    if "just_registered" not in st.session_state:
+        st.session_state.just_registered = False
 
     def logout():
         if st.button("Logout"):
             st.session_state.logged_in = False
             st.rerun()
 
-    login_page = st.Page(
-        login, title="User Login", icon=":material/login:", default=True
-    )
+    login_page = st.Page(login, title="Login", icon=":material/login:", default=True)
     logout_page = st.Page(logout, title="Log Out", icon=":material/logout:")
-    user_creation_page = st.Page(create_user, title="User Registration")
-    qa_page = st.Page(qa_interface, title="Search Interface", icon=":material/chat:")
+    user_creation_page = st.Page(create_user, title="Create Account")
+    qa_page = st.Page(qa_interface, title="Search", icon=":material/chat:")
 
     if st.session_state.logged_in:
-        pg = st.navigation(
-            {
-                "Rekomme Search": [qa_page],
-                "Logout": [logout_page],
-            }
-        )
+        pg = st.navigation({"Rekomme": [qa_page], "Account": [logout_page]})
+    elif st.session_state.just_registered:
+        st.session_state.just_registered = False
+        pg = st.navigation({"Account": [login_page, user_creation_page]})
     else:
-        pg = st.navigation(
-            {
-                "User Login": [login_page],
-                "User Creation": [user_creation_page],
-            }
-        )
-    st.session_state.messages = []
+        pg = st.navigation({"Account": [login_page, user_creation_page]})
+
     ensure_resource_dir_exists()
     pg.run()
 

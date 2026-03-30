@@ -72,20 +72,23 @@ def fetch_file_from_s3(key: str, dest_filename: str | None):
                 logger.error(f"File {key} not found on S3")
                 return False
             else:
-                logger.error("")
+                logger.error(f"S3 error: {e}")
                 return False
 
 
 @lru_cache
 def get_pinecone_vector_store():
     embeddings = OpenAIEmbeddings(model=settings.OPENAI_EMBEDDINGS_MODEL)
-    return PineconeVectorStore(index=settings.PINECONE_INDEX_NAME, embedding=embeddings)
+    return PineconeVectorStore(index_name=settings.PINECONE_INDEX_NAME, embedding=embeddings)
 
 
 def get_tavily_web_search_tool():
+    """Advanced Tavily tool for primary searches (web, Reddit)."""
     os.environ["TAVILY_API_KEY"] = settings.TAVILY_API_KEY
     return TavilySearchResults(max_results=5, search_depth="advanced", include_answer=True)
 
 
-def get_arxiv_search_tool():
-    return ArxivRetriever(load_max_docs=2, get_full_documents=False)
+def get_tavily_basic_search_tool():
+    """Fast Tavily tool for enrichment (news articles, YouTube links)."""
+    os.environ["TAVILY_API_KEY"] = settings.TAVILY_API_KEY
+    return TavilySearchResults(max_results=7, search_depth="basic", include_answer=False)

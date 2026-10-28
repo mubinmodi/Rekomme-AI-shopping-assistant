@@ -4,7 +4,7 @@
 
 ```mermaid
 graph TB
-    subgraph USER["User Interface (Streamlit)"]
+    subgraph USER["User Interface (React + Vite)"]
         LOGIN[Login / Register]
         CHAT[Chat Interface]
         SELECT[Product Selection]

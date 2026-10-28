@@ -11,21 +11,19 @@ services:
     networks:
       - app-network
 
-  streamlit:
+  react:
     build:
       context: .
       dockerfile: frontend.Dockerfile
-    container_name: streamlit_app
-    env_file:
-      - .env
+    container_name: react_app
     ports:
-      - "8501:8501"
+      - "5173:5173"
     networks:
       - app-network
     depends_on:
       - fastapi
     environment:
-      BACKEND_URI: "http://fastapi_app:8000"
+      VITE_DEV_PROXY_TARGET: "http://fastapi:8000"
 
 networks:
   app-network:

@@ -45,7 +45,7 @@ An intelligent shopping recommendation system that leverages Reddit community di
 
 | Layer | Technology |
 |-------|-----------|
-| **Frontend** | Streamlit |
+| **Frontend** | React 19 + Vite |
 | **Backend API** | FastAPI + Uvicorn |
 | **AI/LLM** | OpenAI GPT-4o-mini, LangChain, LangGraph |
 | **Vector Store** | Pinecone (text-embedding-3-small) |
@@ -62,6 +62,7 @@ An intelligent shopping recommendation system that leverages Reddit community di
 - Python 3.12.x (recommended: 3.12.9 via pyenv)
 - Docker Desktop
 - Poetry
+- Node.js 24+ and npm (for local frontend development)
 
 ## Setup
 
@@ -163,7 +164,7 @@ CREATE TABLE IF NOT EXISTS public.reddit_posts (
 **Option A: Docker (recommended)**
 
 ```bash
-# Start the app (FastAPI + Streamlit)
+# Start the app (FastAPI + React)
 docker compose -f docker-compose-app.yml up --build -d
 
 # Optional: Start Airflow for batch data pipeline
@@ -177,14 +178,16 @@ docker compose up --build -d
 poetry run uvicorn backend.main:app --host 0.0.0.0 --port 8000
 
 # Frontend (separate terminal)
-poetry run streamlit run app.py
+cd frontend
+npm install
+npm run dev
 ```
 
 ### 5. Access
 
 | Service | URL |
 |---------|-----|
-| Frontend | http://localhost:8501 |
+| Frontend | http://localhost:5173 |
 | Backend API docs | http://localhost:8000/docs |
 | Airflow UI | http://localhost:8080 (user: airflow, pass: airflow) |
 
@@ -227,7 +230,6 @@ Reddit Scrape (PRAW / OxyLabs fallback)
 
 ```
 .
-├── app.py                          # Streamlit entry point
 ├── backend/
 │   ├── agent/
 │   │   ├── __init__.py             # LangGraph compilation
@@ -244,17 +246,18 @@ Reddit Scrape (PRAW / OxyLabs fallback)
 │   ├── config.py                   # Settings
 │   └── main.py                     # FastAPI app
 ├── frontend/
-│   ├── pages/
-│   │   ├── chat.py                 # Main chat interface
-│   │   ├── login.py                # Login page
-│   │   └── register.py             # Registration page
-│   └── utils/                      # API + auth helpers
+│   ├── src/
+│   │   ├── App.jsx                 # React recommendation workspace
+│   │   ├── api.js                  # JWT-aware API client
+│   │   └── styles.css              # Responsive design system
+│   ├── package.json
+│   └── vite.config.js
 ├── dags/                           # Airflow DAGs
 │   ├── reddit_pipeline.py          # Main scraping DAG
 │   ├── reddit_scrapper.py          # Reddit scraper (PRAW + OxyLabs)
 │   └── reddit_data_processor.py    # Chunking + embedding
 ├── docker-compose.yaml             # Airflow stack
-├── docker-compose-app.yml          # App stack (FastAPI + Streamlit)
+├── docker-compose-app.yml          # App stack (FastAPI + React)
 ├── backend.Dockerfile
 ├── frontend.Dockerfile
 ├── airflow.Dockerfile

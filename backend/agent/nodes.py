@@ -82,6 +82,14 @@ class GraphNodes:
         prompt = state["prompt"]
         resources = state["resources"]
 
+        if not resources:
+            # Nothing retrieved (no vector store, or an empty namespace) — don't
+            # spend a grading call, just send the query down the web-search branch.
+            print("No documents to grade, routing to web search")
+            state["perform_web_search"] = True
+            state["steps"].append(Steps.VECTOR_STORE_EVALUATION.value)
+            return state
+
         # Format all docs into a numbered list
         doc_texts = []
         for i, r in enumerate(resources):

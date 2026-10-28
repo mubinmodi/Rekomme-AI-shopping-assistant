@@ -1,0 +1,52 @@
+# ECS image: React + FastAPI + an in-container Postgres.
+FROM node:24-alpine AS frontend-build
+
+WORKDIR /web
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
+
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        gcc \
+        curl \
+        postgresql \
+        postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Run as a non-root user; Postgres refuses to run as root anyway.
+RUN useradd -m -u 1000 user
+
+WORKDIR /app
+
+RUN pip install poetry
+COPY pyproject.toml poetry.lock /app/
+RUN poetry config virtualenvs.create false \
+    && poetry install --with backend --no-root
+
+COPY backend /app/backend
+COPY deploy /app/deploy
+COPY --from=frontend-build /web/dist /app/frontend_dist
+
+RUN mkdir -p /app/logs /app/resources/cached /app/resources/extracts /app/resources/scraped \
+    && chown -R user:user /app
+
+USER user
+ENV HOME=/home/user \
+    PGDATA=/home/user/pgdata \
+    PATH=/home/user/.local/bin:$PATH \
+    POSTGRES_CONN_STRING=postgresql://postgres@localhost:5432/postgres \
+    POSTGRES_HOSTNAME=localhost \
+    POSTGRES_USER=postgres \
+    POSTGRES_PORT=5432 \
+    POSTGRES_DB=postgres
+
+EXPOSE 8080
+
+CMD ["/app/deploy/start.sh"]

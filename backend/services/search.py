@@ -40,6 +40,10 @@ async def process_initial_search_query(
     )
 
 def fetch_google_shopping_results(search_term: str) -> Dict:
+    if not settings.OXYLABS_USERNAME or not settings.OXYLABS_PASSWORD:
+        # No merchant-listings provider configured; the rest of the card still renders.
+        return {}
+
     payload = {
         'source': 'google_shopping_search',
         'domain': 'com',

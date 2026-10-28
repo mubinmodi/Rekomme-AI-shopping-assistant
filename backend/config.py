@@ -7,10 +7,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
     # AWS
-    AWS_ACCESS_KEY_ID: str
-    AWS_SECRET_ACCESS_KEY: str
-    AWS_REGION: str
-    AWS_S3_BUCKET: str
+    AWS_ACCESS_KEY_ID: str = ""
+    AWS_SECRET_ACCESS_KEY: str = ""
+    AWS_REGION: str = "us-east-1"
+    AWS_S3_BUCKET: str = ""
 
     # JWT Authentication
     JWT_SECRET_KEY: str
@@ -28,8 +28,8 @@ class Settings(BaseSettings):
     POSTGRES_URI: str | None = None
 
     # Pinecone
-    PINECONE_API_KEY: str
-    PINECONE_ENVIRONMENT: str
+    PINECONE_API_KEY: str = ""
+    PINECONE_ENVIRONMENT: str = ""
     PINECONE_INDEX_NAME: str = "damg7245-a4"
 
     # OpenAI
@@ -40,12 +40,15 @@ class Settings(BaseSettings):
     TAVILY_API_KEY: str
 
     # OxyLabs
-    OXYLABS_USERNAME: str
-    OXYLABS_PASSWORD: str
+    OXYLABS_USERNAME: str = ""
+    OXYLABS_PASSWORD: str = ""
 
     # Fast API config
     APP_TITLE: str = "Rekomme - AI Powered Shopping Assistant"
     APP_VERSION: str = "0.1"
+
+    # Demo deployment
+    DEMO_MODE: bool = False
 
     # Logging Config
     LOG_LEVEL: str = "INFO"
@@ -57,6 +60,8 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def validator(self) -> "Settings":
         self.POSTGRES_URI = self.POSTGRES_CONN_STRING
+        if not self.PINECONE_API_KEY:
+            self.DEMO_MODE = True
         return self
 
 
